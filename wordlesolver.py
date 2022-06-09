@@ -5,10 +5,13 @@
 __author__ = "Adam Karl"
 
 import timeit
+from multiprocessing import Process, Queue
+
+PROCESSORS = 8
+answersTested = 0
 
 wordList = []
 numWords = 0
-remaining = []
 
 #example: first guess 'owing' when answer is 'wring'
 #guessed = ['owing','','','','', '']
@@ -87,7 +90,9 @@ def analyzeGuessesGivenAnswer(answer):
     """Given the answer, try all possible initial guesses and determine how
     much they narrow down the solution. Add to global based on the remaining
     solutions"""
-    global wordList, numWords, remaining
+    global wordList, numWords
+
+    remaining = [0 for i in range(numWords)]
 
     for i in range(numWords):
         firstGuess = wordList[i]
@@ -96,6 +101,7 @@ def analyzeGuessesGivenAnswer(answer):
         colors  = [c, None, None, None, None, None]
         rem = numRemainingValidWords(answer, guessed, colors)
         remaining[i] += rem
+    return remaining
 
 
 def determineColors(answer, guess):
@@ -121,6 +127,19 @@ def determineColors(answer, guess):
                     break
     return colors
 
+def multiprocessAnalysis(id,Q):
+    loadFile()
+    remaining = [0 for _ in range(numWords)]
+    for i in range(id, numWords, PROCESSORS):
+        answer = wordList[i]
+        tmp = analyzeGuessesGivenAnswer(answer)
+        for j in range(numWords):
+            remaining[j] += tmp[j]
+        print(f"finished {answer}", flush=True)
+
+    Q.put(remaining) #push to queue so that master process collects data
+    return
+
 def loadFile():
     global wordList, numWords
 
@@ -133,23 +152,36 @@ def loadFile():
         wordList[i] = wordList[i][:5]
     return
 
+
 def main():
-    global wordList, numWords, remaining
+    global wordList, numWords
+    Q = Queue()
 
     loadFile()
     remaining = [0 for i in range(numWords)]
 
     print(f"{numWords} 5-letter words in dictionary", flush=True)
 
-    startTime = timeit.default_timer()
-    for i in range(numWords):
-        answer = wordList[i]
-        analyzeGuessesGivenAnswer(answer)
 
-        endTime = timeit.default_timer()
-        predTime = (endTime-startTime)*(numWords/(i+1))
-        formatted_time = "{:.2f}".format(predTime/3600)
-        print(f"{i+1}/{numWords} complete, ~{formatted_time} h remaining", flush=True)
+    procs = [None for x in range(PROCESSORS)]
+    for id in range(PROCESSORS):
+        procs[id] = Process(target=multiprocessAnalysis, args=(id,Q,))
+
+    print(f"proc {id}")
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+    print("All processes finished", flush=True)
+
+    #gather data each process has returned
+    Q.put('DONE')
+    while True:
+        rem = Q.get()
+        if rem=='DONE':
+            break
+        for i in range(numWords):
+            remaining[i] += rem[i]
 
     avgRemaining = [x/numWords for x in remaining]
 
