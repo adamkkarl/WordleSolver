@@ -1,13 +1,14 @@
 #!/bin/python3
 
-import re
+"""Experiments at determining optimal wordle guesses"""
+
+__author__ = "Adam Karl"
+
+import timeit
 
 wordList = []
 numWords = 0
-
-answer = ''
-guessed = [None, None, None, None, None, None] # holds the 5-letter guessed
-colors  = [None, None, None, None, None, None] # 0=gray, 1=yellow, 2=green
+remaining = []
 
 #example: first guess 'owing' when answer is 'wring'
 #guessed = ['owing','','','','', '']
@@ -60,9 +61,9 @@ def validBasedOnGuess(myWord, prevGuess, colors):
     return True
 
 
-def remainingValidWords():
-    """Given all clues so far, return the words the answer could still be"""
-    global wordList, guessed, colors
+def numRemainingValidWords(answer, guessed, colors):
+    """Given all clues so far, return the number of words the answer could still be"""
+    global wordList
 
     if guessed[0] == None:
         #no guesses made yet so whole dictionary is valid
@@ -80,38 +81,45 @@ def remainingValidWords():
         if valid:
             remaining.append(word)
 
-    return remaining
+    return len(remaining)
 
-def guess(myGuess, numGuess):
-    """add the given word to the list of guessed and determine the colors of the letters
-    input: the word and the guess number (0 for first guess up to 5 for 6th and final guess)"""
-    global guessed, colors, answer
+def analyzeGuessesGivenAnswer(answer):
+    """Given the answer, try all possible initial guesses and determine how
+    much they narrow down the solution. Add to global based on the remaining
+    solutions"""
+    global wordList, numWords, remaining
 
-    guessed[numGuess] = myGuess
-    tmp = [0,0,0,0,0] #start with all letters grayed out
+    for i in range(numWords):
+        firstGuess = wordList[i]
+        c = determineColors(answer, firstGuess)
+        guessed = [firstGuess, None, None, None, None, None]
+        colors  = [c, None, None, None, None, None]
+        rem = numRemainingValidWords(answer, guessed, colors)
+        remaining[i] += rem
+
+
+def determineColors(answer, guess):
+    """given the answer and a guess, determine the colors of the letters
+    output is an array of 5 values, 0=gray, 1=yellow, 2=green"""
+    #start with all letters grayed out
+    colors = [0,0,0,0,0]
 
     #determine greens
     for pos in range(5):
-        if myGuess[pos] == answer[pos]:
-            tmp[pos] = 2
+        if guess[pos] == answer[pos]:
+            colors[pos] = 2
 
     #determine yellows
     #for each position that isn't already green, the first occurrance of the character
     #that isn't yellow or green should be changed to yellow
     for pos in range(5):
-        if tmp[pos] != 2:
+        if colors[pos] != 2:
             c = answer[pos]
             for i in range(5):
-                if tmp[i] == 0 and myGuess[i] == c:
-                    tmp[i] = 1
+                if colors[i] == 0 and guess[i] == c:
+                    colors[i] = 1
                     break
-
-    colors[numGuess] = tmp
-    return
-
-def resetGuesses():
-    guessed = [None, None, None, None, None, None] # holds the 5-letter guessed
-    colors  = [None, None, None, None, None, None] # 0=gray, 1=yellow, 2=green
+    return colors
 
 def loadFile():
     global wordList, numWords
@@ -126,31 +134,28 @@ def loadFile():
     return
 
 def main():
-    global wordList, numWords, answer
+    global wordList, numWords, remaining
 
     loadFile()
+    remaining = [0 for i in range(numWords)]
 
     print(f"{numWords} 5-letter words in dictionary", flush=True)
 
-    f = open(r'sgb-words.txt', 'r')
-    words = f.read()
-
-    remaining = [0 for i in range(numWords)]
+    startTime = timeit.default_timer()
     for i in range(numWords):
         answer = wordList[i]
-        print(f"{i}/{numWords} complete", flush=True)
-        for j in range(numWords):
-            resetGuesses()
-            guess(wordList[j], 0)
-            remaining[j] += len(remainingValidWords())
+        analyzeGuessesGivenAnswer(answer)
+
+        endTime = timeit.default_timer()
+        predTime = (endTime-startTime)*(numWords/(i+1))
+        formatted_time = "{:.2f}".format(predTime/3600)
+        print(f"{i+1}/{numWords} complete, ~{formatted_time} h remaining", flush=True)
 
     avgRemaining = [x/numWords for x in remaining]
 
     bestAvg = min(avgRemaining)
     bestWord = wordList[avgRemaining.index(bestAvg)]
     print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
-
-    f.close()
 
 if __name__ == "__main__":
     main()
