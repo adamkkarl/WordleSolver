@@ -6,44 +6,88 @@ wordList = []
 numWords = 0
 
 answer = ''
-guesses = ['','','','','', ''] # holds the 5-letter guesses
+guessed = [None, None, None, None, None, None] # holds the 5-letter guessed
 colors  = [None, None, None, None, None, None] # 0=gray, 1=yellow, 2=green
 
 #example: first guess 'owing' when answer is 'wring'
-#guesses = ['owing','','','','', '']
-#colors  = ['01222','','','','', '']
+#guessed = ['owing','','','','', '']
+#colors  = [[0,1,2,2,2],None, None, None, None, None]
 
-def numMatching():
-    """Given all clues so far, return the number of words the answer could be"""
-    global wordList, numWords
+def validBasedOnGuess(myWord, prevGuess, colors):
+    """given a word and a single previous guess + corresponding colors,
+    return true if the word could possibly be a solution"""
+    word = myWord
+
+    #check word matches green letters
+    greenIndexes = list()
+    for pos in range(5):
+        if colors[pos] == 2:
+            greenIndexes.append(pos)
+            if word[pos] != prevGuess[pos]:
+                #doesn't match green letter
+                return False
+
+    #since all greens match, can eliminate to make problem simpler
+    while len(greenIndexes) > 0:
+        i = greenIndexes[-1]
+        word = word[:i] + word[i+1:]
+        prevGuess = prevGuess[:i] + prevGuess[i+1:]
+        del colors[i]
+        del greenIndexes[-1]
+
+    #solve yellows by iteratively simplifying yellow pairs
+    #replace yellow char in prevGuess with '?'
+    #replace first instance of that char in word with '!'
+    for pos in range(len(prevGuess)):
+        if colors[pos] == 1:
+            c = prevGuess[pos]
+            restOfWord = word[:pos] + word[pos+1:]
+            if c not in restOfWord or word[pos] == c:
+                #yellow letter either found in same position or not at all
+                return False
+            else:
+                prevGuess = prevGuess[:pos] + '?' + prevGuess[pos+1:]
+                wordPos = word.find(c)
+                word = word[:wordPos] + '!' + word[wordPos+1:]
+
+
+    #finally, check for overlap in gray characters
+    for pos in range(len(prevGuess)):
+        if colors[pos] == 0:
+            if prevGuess in word:
+                return False
+
+    return True
+
+
+def remainingValidWords():
+    """Given all clues so far, return the words the answer could still be"""
+    global wordList, guessed, colors
+
+    if guessed[0] == None:
+        #no guesses made yet so whole dictionary is valid
+        return wordList
 
     remaining = list()
     for word in wordList:
         valid = True
-        for guess in guesses:
-            for pos in range(5):
-                if valid:
-                    if guess[pos] == '2' and word[pos] != guess[pos]:
-                        #guess doesn't match established green
-                        valid = False
-                    elif guess[pos] == '1':
-                        #guess has inva
-                        pass
-
-
+        for i in range(6):
+            if guessed[i] == None:
+                break
+            elif validBasedOnGuess(word, guessed[i], colors[i].copy()) == False:
+                    valid = False
+                    break
         if valid:
             remaining.append(word)
 
-    print(remaining)
-    print(f"{len(remaining)}", flush=True)
-    return len(remaining)
+    return remaining
 
 def guess(myGuess, numGuess):
-    """add the given word to the list of guesses and determine the colors of the letters
+    """add the given word to the list of guessed and determine the colors of the letters
     input: the word and the guess number (0 for first guess up to 5 for 6th and final guess)"""
-    global guesses, colors, answer
+    global guessed, colors, answer
 
-    guesses[numGuess] = myGuess
+    guessed[numGuess] = myGuess
     tmp = [0,0,0,0,0] #start with all letters grayed out
 
     #determine greens
@@ -88,52 +132,35 @@ def main():
     words = f.read()
     print(words, flush=True)
 
-    remaining = [0 for i in range(numWords)]
-    # for i in range(numWords):
-    #     answer = wordList[i]
-    #     for j in range(numWords):
-    #         guess = wordList[j]
-    #         green = ''
-    #         yellow = ['a','','','','']
-    #         gray = ''
-    #         for pos in range(5):
-    #             #determine greens
-    #             if answer[pos] == guess[pos]:
-    #                 green = green + answer[pos]
-    #             else:
-    #                 green = green + '.'
-    #
-    #             #determine yellows
-    #             if guess[pos] != answer[pos] and guess[pos] in answer:
-    #                 yellow[pos] = yellow[pos] + guess[pos]
-    #
-    #             #determine grays
-    #             if guess[pos] not in guess:
-    #                 gray = gray + guess[pos]
-    #
-    #         avgRemaining[j] += numMatching()
 
-    avgRemaining = [x/numWords for x in remaining]
 
-    bestAvg = min(avgRemaining)
-    bestWord = wordList[avgRemaining.index(bestAvg)]
+    # remaining = [0 for i in range(numWords)]
+    # avgRemaining = [x/numWords for x in remaining]
 
-    print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
+    # bestAvg = min(avgRemaining)
+    # bestWord = wordList[avgRemaining.index(bestAvg)]
+
+    # print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
 
 
     f.close()
 
 
 def tmp():
-    global answer, guesses, colors
+    global answer, guessed, colors
 
     loadFile()
 
-    answer = 'aaaxx'
-    guess('xxxhh', 0)
-    print(guesses)
+    guessed[0] = 'yhapp'
+    colors[0] = [1,1,1,2,1]
+
+    rem = remainingValidWords()
+    print(rem)
+    print(guessed)
     print(colors)
+    print(f'{len(rem)} valid words remain')
+
 
 
 if __name__ == "__main__":
-    main()
+    tmp()
