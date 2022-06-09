@@ -109,6 +109,10 @@ def guess(myGuess, numGuess):
     colors[numGuess] = tmp
     return
 
+def resetGuesses():
+    guessed = [None, None, None, None, None, None] # holds the 5-letter guessed
+    colors  = [None, None, None, None, None, None] # 0=gray, 1=yellow, 2=green
+
 def loadFile():
     global wordList, numWords
 
@@ -126,41 +130,27 @@ def main():
 
     loadFile()
 
-    print(f"{numWords} 5-letter words in dictionary")
+    print(f"{numWords} 5-letter words in dictionary", flush=True)
 
     f = open(r'sgb-words.txt', 'r')
     words = f.read()
-    print(words, flush=True)
 
+    remaining = [0 for i in range(numWords)]
+    for i in range(numWords):
+        answer = wordList[i]
+        print(f"{i}/{numWords} complete", flush=True)
+        for j in range(numWords):
+            resetGuesses()
+            guess(wordList[j], 0)
+            remaining[j] += len(remainingValidWords())
 
+    avgRemaining = [x/numWords for x in remaining]
 
-    # remaining = [0 for i in range(numWords)]
-    # avgRemaining = [x/numWords for x in remaining]
-
-    # bestAvg = min(avgRemaining)
-    # bestWord = wordList[avgRemaining.index(bestAvg)]
-
-    # print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
-
+    bestAvg = min(avgRemaining)
+    bestWord = wordList[avgRemaining.index(bestAvg)]
+    print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
 
     f.close()
 
-
-def tmp():
-    global answer, guessed, colors
-
-    loadFile()
-
-    guessed[0] = 'yhapp'
-    colors[0] = [1,1,1,2,1]
-
-    rem = remainingValidWords()
-    print(rem)
-    print(guessed)
-    print(colors)
-    print(f'{len(rem)} valid words remain')
-
-
-
 if __name__ == "__main__":
-    tmp()
+    main()
