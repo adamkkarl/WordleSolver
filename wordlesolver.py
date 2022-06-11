@@ -6,6 +6,8 @@ __author__ = "Adam Karl"
 
 import timeit
 
+COLOR_GRID = dict()
+
 wordList = []
 numWords = 0
 remaining = []
@@ -117,6 +119,38 @@ def determineColors(answer, guess):
                     break
     return colors
 
+def generateColorGrid():
+    """Given the word list, create a 2D matrix of all patterns.
+    with gray=0, yellow=1, green=2 at each of 5 positions, the pattern
+    can be saved uniquely as an int between 0 and 3^5
+    use colorMatrix[answer][guess] to find """
+    global wordList, numWords, colorMatrix
+
+    colorMatrix = [[[0,0,0,0,0] for i in range(numWords)] for j in range(numWords)]
+
+
+    for i in range(numWords):
+        for j in range(numWords):
+            answer = wordList[i]
+            guess = wordList[j]
+            colors = colorMatrix[i][j]
+
+            #determine greens
+            for pos in range(5):
+                if guess[pos] == answer[pos]:
+                    colors[pos] = 2
+
+            #determine yellows
+            #for each answer char that isn't already green, the *first* occurrance of the
+            #guess char that isn't yellow or green should be changed to yellow
+            for pos in range(5):
+                if colors[pos] != 2:
+                    c = answer[pos]
+                    for i in range(5):
+                        if colors[i] == 0 and guess[i] == c:
+                            colors[i] = 1
+                            break
+
 def loadFile():
     global wordList, numWords
 
@@ -153,5 +187,12 @@ def main():
     bestWord = wordList[avgRemaining.index(bestAvg)]
     print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
 
+def tmp():
+    loadFile()
+    startTime = timeit.default_timer()
+    generateColorGrid()
+    endTime = timeit.default_timer()
+    print(f"complete, ~{(endTime-startTime)/60} m elapsed", flush=True)
+
 if __name__ == "__main__":
-    main()
+    tmp()
