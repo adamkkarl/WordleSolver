@@ -1,5 +1,6 @@
 #!/bin/python3
 
+<<<<<<< HEAD
 """Experiments at determining optimal wordle guesses"""
 
 __author__ = "Adam Karl"
@@ -12,6 +13,16 @@ answersTested = 0
 
 wordList = []
 numWords = 0
+=======
+import re
+
+wordList = []
+numWords = 0
+
+answer = ''
+guessed = [None, None, None, None, None, None] # holds the 5-letter guessed
+colors  = [None, None, None, None, None, None] # 0=gray, 1=yellow, 2=green
+>>>>>>> parent of e52036b (first guess analyzer supposedly works but takes 80h. Functions ready for multithreading implementation)
 
 #example: first guess 'owing' when answer is 'wring'
 #guessed = ['owing','','','','', '']
@@ -64,9 +75,9 @@ def validBasedOnGuess(myWord, prevGuess, colors):
     return True
 
 
-def numRemainingValidWords(answer, guessed, colors):
-    """Given all clues so far, return the number of words the answer could still be"""
-    global wordList
+def remainingValidWords():
+    """Given all clues so far, return the words the answer could still be"""
+    global wordList, guessed, colors
 
     if guessed[0] == None:
         #no guesses made yet so whole dictionary is valid
@@ -84,6 +95,7 @@ def numRemainingValidWords(answer, guessed, colors):
         if valid:
             remaining.append(word)
 
+<<<<<<< HEAD
     return len(remaining)
 
 def analyzeGuessesGivenAnswer(answer):
@@ -101,31 +113,40 @@ def analyzeGuessesGivenAnswer(answer):
         colors  = [c, None, None, None, None, None]
         rem = numRemainingValidWords(answer, guessed, colors)
         remaining[i] += rem
+=======
+>>>>>>> parent of e52036b (first guess analyzer supposedly works but takes 80h. Functions ready for multithreading implementation)
     return remaining
 
+def guess(myGuess, numGuess):
+    """add the given word to the list of guessed and determine the colors of the letters
+    input: the word and the guess number (0 for first guess up to 5 for 6th and final guess)"""
+    global guessed, colors, answer
 
-def determineColors(answer, guess):
-    """given the answer and a guess, determine the colors of the letters
-    output is an array of 5 values, 0=gray, 1=yellow, 2=green"""
-    #start with all letters grayed out
-    colors = [0,0,0,0,0]
+    guessed[numGuess] = myGuess
+    tmp = [0,0,0,0,0] #start with all letters grayed out
 
     #determine greens
     for pos in range(5):
-        if guess[pos] == answer[pos]:
-            colors[pos] = 2
+        if myGuess[pos] == answer[pos]:
+            tmp[pos] = 2
 
     #determine yellows
     #for each position that isn't already green, the first occurrance of the character
     #that isn't yellow or green should be changed to yellow
     for pos in range(5):
-        if colors[pos] != 2:
+        if tmp[pos] != 2:
             c = answer[pos]
             for i in range(5):
-                if colors[i] == 0 and guess[i] == c:
-                    colors[i] = 1
+                if tmp[i] == 0 and myGuess[i] == c:
+                    tmp[i] = 1
                     break
-    return colors
+
+    colors[numGuess] = tmp
+    return
+
+def resetGuesses():
+    guessed = [None, None, None, None, None, None] # holds the 5-letter guessed
+    colors  = [None, None, None, None, None, None] # 0=gray, 1=yellow, 2=green
 
 def multiprocessAnalysis(id,Q):
     loadFile()
@@ -154,14 +175,18 @@ def loadFile():
 
 
 def main():
+<<<<<<< HEAD
     global wordList, numWords
     Q = Queue()
+=======
+    global wordList, numWords, answer
+>>>>>>> parent of e52036b (first guess analyzer supposedly works but takes 80h. Functions ready for multithreading implementation)
 
     loadFile()
-    remaining = [0 for i in range(numWords)]
 
     print(f"{numWords} 5-letter words in dictionary", flush=True)
 
+<<<<<<< HEAD
 
     procs = [None for x in range(PROCESSORS)]
     for id in range(PROCESSORS):
@@ -182,12 +207,27 @@ def main():
             break
         for i in range(numWords):
             remaining[i] += rem[i]
+=======
+    f = open(r'sgb-words.txt', 'r')
+    words = f.read()
+
+    remaining = [0 for i in range(numWords)]
+    for i in range(numWords):
+        answer = wordList[i]
+        print(f"{i}/{numWords} complete", flush=True)
+        for j in range(numWords):
+            resetGuesses()
+            guess(wordList[j], 0)
+            remaining[j] += len(remainingValidWords())
+>>>>>>> parent of e52036b (first guess analyzer supposedly works but takes 80h. Functions ready for multithreading implementation)
 
     avgRemaining = [x/numWords for x in remaining]
 
     bestAvg = min(avgRemaining)
     bestWord = wordList[avgRemaining.index(bestAvg)]
     print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
+
+    f.close()
 
 if __name__ == "__main__":
     main()
