@@ -1,7 +1,7 @@
 #!/bin/python3
 
 """Experiments at determining optimal wordle guesses"""
-from test.libregrtest.save_env import multiprocessing
+#from test.libregrtest.save_env import multiprocessing
 
 __author__ = "Adam Karl"
 
@@ -9,10 +9,11 @@ import timeit, array, os, numpy as np
 from numpy import uint8, dtype
 from multiprocessing import Process, Queue
 
-PROCESSORS = 8
+PROCESSORS = 4
 
 WORDS_FILE = 'sgb-words.txt'
 PATTERN_MATRIX_FILE = 'output_pattern_matrix.txt'
+OUTPUT_FILE = 'output_solution.txt'
 patternMatrix = []  #patternMatrix[guessIndex][answerIndex] to find the pattern score
 
 wordList = []
@@ -171,7 +172,7 @@ def analyzeGuesses():
         print(f"{answerIndex+1}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
     return remaining
 
-def runAnalysis(multiprocess = False):
+def runAnalysis(multiprocess):
     """Decide whether to use single process or multi process solution
     Return list that indicated total remaining words after a certain guess"""
     global numWords, patternMatrix
@@ -208,15 +209,30 @@ def main():
     print(f"{numWords} 5-letter words in dictionary", flush=True)
     
     remaining = runAnalysis(multiprocess = True)
+    print(remaining)
+    print(f'Writing output solution to file...', flush=True)
+    file = open(OUTPUT_FILE, 'w')
+    file.write(' '.join(str(x) for x in remaining))
+    file.write('\n')
+    file.close()
+    print(f'Wrote output solution to file!\n', flush=True)
     avgRemaining = [x/numWords for x in remaining]
-
-    bestAvg = min(avgRemaining)
-    bestWord = wordList[avgRemaining.index(bestAvg)]
-    print(f'{bestWord} is the best initial guess with an avg of {bestAvg} words remaining')
     
+    # print worst word
     worstAvg = max(avgRemaining)
     worstWord = wordList[avgRemaining.index(worstAvg)]
-    print(f'{worstWord} is the worst initial guess with an avg of {worstAvg} words remaining')
+    print(f'{worstWord} is the worst initial guess with an avg of {worstAvg} words remaining\n')
+    
+    # print top 10 words
+    print("TOP 10 INITIAL GUESSES")
+    for i in range(10):
+        bestAvg = min(avgRemaining)
+        bestAveIndex = avgRemaining.index(bestAvg)
+        bestWord = wordList[bestAveIndex]
+        print(f'{i+1}. {bestWord} with an avg of {bestAvg} words remaining')
+        avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
+    
+    
 
 if __name__ == "__main__":
     main()
