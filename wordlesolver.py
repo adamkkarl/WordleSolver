@@ -4,9 +4,11 @@
 
 __author__ = "Adam Karl"
 
-import timeit, array, os
-import numpy as np
+import timeit, array, os, numpy as np
 from numpy import uint8, dtype
+from multiprocessing import Process, Queue
+
+PROCESSORS = 1
 
 WORDS_FILE = 'sgb-words.txt'
 PATTERN_MATRIX_FILE = 'output_pattern_matrix.txt'
@@ -15,65 +17,37 @@ patternMatrix = []  #patternMatrix[guessIndex][answerIndex] to find the pattern 
 wordList = []
 numWords = 0
 remaining = []
+        
+def loadWordList():
+    global wordList, numWords
 
-def analyzeGuesses():
-    """Analyze all combinations of answer and first guess, each time determining
-    the number of remaining valid words the answer could be. Return an array of the
-    sum total remaining possibilities given an initial guess"""
-    global wordList, numWords, patternMatrix
+    f = open(WORDS_FILE, 'r')
+    wordList = f.readlines()
+    f.close()
+
+    numWords = len(wordList)
+    for i in range(numWords): #trim whitespace
+        wordList[i] = wordList[i][:5]
+    return
+
+def makePatternMatrix():
+    """If the pattern matrix exists as a file, import it. Otherwise, generate one and save it to file"""
+    if os.path.exists(PATTERN_MATRIX_FILE):
+        importPatternMatrix()
+    else:
+        initializePatternMatrix()
+        
+def importPatternMatrix():
+    global patternMatrix
     
-    remaining = [0 for i in range(numWords)]
-
-    print('Starting first guess analysis...', flush=True)
-    startTime = timeit.default_timer()
-    for answerIndex in range(numWords):        
-        for firstGuessIndex in range(numWords):
-            firstGuessScore = patternMatrix[firstGuessIndex][answerIndex]
-            for potentialGuessIndex in range(numWords):
-                    #a potential guess could be the answer if
-                    #pattern of (prevGuess, answer) == pattern of (prevGuess, potentialGuess)
-                    if patternMatrix[firstGuessIndex][potentialGuessIndex] == firstGuessScore:
-                        remaining[firstGuessIndex] += 1
-            
-        #provide progress updates
-        currTime = timeit.default_timer()
-        elapsedTime = currTime - startTime
-        predTime = elapsedTime*(numWords/(answerIndex+1)) - elapsedTime
-        formatted_time = "{:.2f}".format(predTime/60)
-        lowestRem = min(remaining)
-        bestWord = wordList[remaining.index(lowestRem)]
-        print(f'{bestWord} is the best initial guess so far with {lowestRem/(answerIndex+1)} words remaining')
-        print(f"{answerIndex+1}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
-    return remaining
-
-def determinePattern(answer, guess):
-    """Given a guess and answer, determine a pattern for the guess where
-    0=gray, 1=yellow, 2=green"""
-    pattern = [0,0,0,0,0]
-
-    #determine greens
-    for pos in range(5):
-        if guess[pos] == answer[pos]:
-            pattern[pos] = 2
-
-    #determine yellows
-    #for each answer char that isn't already green, the *first* occurrence of the
-    #guess char that isn't yellow or green should be changed to yellow
-    for ansPos in range(5):
-        if pattern[ansPos] != 2:
-            c = answer[ansPos]
-            for guessPos in range(5):
-                if pattern[guessPos] == 0 and guess[guessPos] == c:
-                    pattern[guessPos] = 1
-                    break
-    return pattern
-
-def patternScore(colors):
-    """input: list of 5 integers where 0=gray 1=yellow 2=green
-    output: unique int between 0 and 3^5-1"""
-    n = colors[0]*(3**4) + colors[1]*(3**3) + colors[2]*(3**2) + colors[3]*3 + colors[4]
-    return n
-
+    print('Importing pattern matrix from file...', end='', flush=True)
+    
+    tmp = list()
+    with open(PATTERN_MATRIX_FILE) as file:
+        tmp = [[int(n) for n in line.split()] for line in file]
+    patternMatrix = np.array(tmp, uint8)
+    
+    print(f'Imported a {patternMatrix.shape[0]} x {patternMatrix.shape[1]} matrix!', flush=True)
 
 def initializePatternMatrix():
     """Given the word list, create a 2D matrix of all patterns.
@@ -108,36 +82,63 @@ def initializePatternMatrix():
     file.close()
     print(f'Wrote pattern matrix to file!', flush=True)
 
-def importPatternMatrix():
-    global patternMatrix
-    
-    print('Importing pattern matrix from file...', end='', flush=True)
-    
-    tmp = list()
-    with open(PATTERN_MATRIX_FILE) as file:
-        tmp = [[int(n) for n in line.split()] for line in file]
-    patternMatrix = np.array(tmp, uint8)
-    
-    print(f'Imported a {patternMatrix.shape[0]} x {patternMatrix.shape[1]} matrix!', flush=True)
-    
-def makePatternMatrix():
-    """If the pattern matrix exists as a file, import it. Otherwise, generate one and save it to file"""
-    if os.path.exists(PATTERN_MATRIX_FILE):
-        importPatternMatrix()
-    else:
-        initializePatternMatrix()
-        
-def loadWordList():
-    global wordList, numWords
+def determinePattern(answer, guess):
+    """Given a guess and answer, determine a pattern for the guess where
+    0=gray, 1=yellow, 2=green"""
+    pattern = [0,0,0,0,0]
 
-    f = open(WORDS_FILE, 'r')
-    wordList = f.readlines()
-    f.close()
+    #determine greens
+    for pos in range(5):
+        if guess[pos] == answer[pos]:
+            pattern[pos] = 2
 
-    numWords = len(wordList)
-    for i in range(numWords): #trim whitespace
-        wordList[i] = wordList[i][:5]
-    return
+    #determine yellows
+    #for each answer char that isn't already green, the *first* occurrence of the
+    #guess char that isn't yellow or green should be changed to yellow
+    for ansPos in range(5):
+        if pattern[ansPos] != 2:
+            c = answer[ansPos]
+            for guessPos in range(5):
+                if pattern[guessPos] == 0 and guess[guessPos] == c:
+                    pattern[guessPos] = 1
+                    break
+    return pattern
+
+def patternScore(pattern):
+    """input: list of 5 integers where 0=gray 1=yellow 2=green
+    output: unique int between 0 and 3^5-1"""
+    ret = pattern[0]*(3**4) + pattern[1]*(3**3) + pattern[2]*(3**2) + pattern[3]*3 + pattern[4]
+    return ret
+
+def analyzeGuesses():
+    """Analyze all combinations of answer and first guess, each time determining
+    the number of remaining valid words the answer could be. Return an array of the
+    sum total remaining possibilities given an initial guess"""
+    global wordList, numWords, patternMatrix
+    
+    remaining = [0 for i in range(numWords)]
+
+    print('Starting first guess analysis...', flush=True)
+    startTime = timeit.default_timer()
+    for answerIndex in range(numWords):        
+        for firstGuessIndex in range(numWords):
+            firstGuessScore = patternMatrix[firstGuessIndex][answerIndex]
+            for potentialGuessIndex in range(numWords):
+                    #a potential guess could be the answer if
+                    #pattern of (prevGuess, answer) == pattern of (prevGuess, potentialGuess)
+                    if patternMatrix[firstGuessIndex][potentialGuessIndex] == firstGuessScore:
+                        remaining[firstGuessIndex] += 1
+            
+        #provide progress updates
+        currTime = timeit.default_timer()
+        elapsedTime = currTime - startTime
+        predTime = elapsedTime*(numWords/(answerIndex+1)) - elapsedTime
+        formatted_time = "{:.2f}".format(predTime/60)
+        lowestRem = min(remaining)
+        bestWord = wordList[remaining.index(lowestRem)]
+        print(f'{bestWord} is the best initial guess so far with {lowestRem/(answerIndex+1)} words remaining')
+        print(f"{answerIndex+1}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
+    return remaining
 
 def main():
     global wordList, numWords, patternMatrix
