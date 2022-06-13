@@ -62,7 +62,6 @@ def importPatternMatrix():
     elapsedTime = endTime - startTime
     formatted_time = "{:.2f}".format(elapsedTime)
     print(f'Imported a {patternMatrix.shape[0]} x {patternMatrix.shape[1]} matrix in {formatted_time} sec', flush=True)
-    print(patternMatrix)
 
 def initializePatternMatrix():
     """Given the word list, create a 2D matrix of all patterns.
@@ -119,7 +118,6 @@ def importPatternFreqMatrix():
     elapsedTime = endTime - startTime
     formatted_time = "{:.2f}".format(elapsedTime)
     print(f'Imported a {patternFreqMatrix.shape[0]} x {patternFreqMatrix.shape[1]} matrix in {formatted_time} sec', flush=True)
-    print(patternFreqMatrix)
     
 def initializePatternFreqMatrix():
     """Given the pattern matrix, create patternFreqMatrix such that
@@ -181,41 +179,12 @@ def patternScore(pattern):
     ret = pattern[0]*(3**4) + pattern[1]*(3**3) + pattern[2]*(3**2) + pattern[3]*3 + pattern[4]
     return ret
 
-def analyzeGuessesMultiprocessing(id, Q, numWords, patternMatrix):
-    """ALTERNATIVE VERSION OF analyzeGuesses()
-    Analyze all combinations of answer and first guess, each time determining
-    the number of remaining valid words the answer could be. Return an array of the
-    sum total remaining possibilities given an initial guess"""
-    remaining = [0 for i in range(numWords)]
-
-    print(f'Proc {id} starting first guess analysis...', flush=True)
-    startTime = timeit.default_timer()
-    finishedAnswers = 0
-    for answerIndex in range(id, numWords, PROCESSORS): #using num processors as the step splits the work evenly
-        for firstGuessIndex in range(numWords):
-            firstGuessScore = patternMatrix[firstGuessIndex][answerIndex]
-            for potentialGuessIndex in range(numWords):
-                    #a potential guess could be the answer if
-                    #pattern of (prevGuess, answer) == pattern of (prevGuess, potentialGuess)
-                    if patternMatrix[firstGuessIndex][potentialGuessIndex] == firstGuessScore:
-                        remaining[firstGuessIndex] += 1
-            
-        finishedAnswers += 1
-        if id == PROCESSORS-1:
-            #provide progress updates assuming every processor has done as much work as this one
-            currTime = timeit.default_timer()
-            elapsedTime = currTime - startTime
-            predTime = elapsedTime*(numWords/(finishedAnswers*PROCESSORS)) - elapsedTime
-            formatted_time = "{:.2f}".format(predTime/60)
-            print(f"{finishedAnswers*PROCESSORS}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
-    Q.put(remaining)
-
 def analyzeGuesses():
     """ALTERNATIVE VERSION OF analyzeGuessesMultiprocessing()
     Analyze all combinations of answer and first guess, each time determining
     the number of remaining valid words the answer could be. Return an array of the
     sum total remaining possibilities given an initial guess"""
-    global wordList, numWords, patternMatrix
+    global wordList, numWords, patternMatrix, patternFreqMatrix
     
     remaining = [0 for i in range(numWords)]
 
@@ -223,52 +192,20 @@ def analyzeGuesses():
     startTime = timeit.default_timer()
     for answerIndex in range(numWords):        
         for firstGuessIndex in range(numWords):
-            firstGuessScore = patternMatrix[firstGuessIndex][answerIndex]
-            for potentialGuessIndex in range(numWords):
-                    #a potential guess could be the answer if
-                    #pattern of (prevGuess, answer) == pattern of (prevGuess, potentialGuess)
-                    if patternMatrix[firstGuessIndex][potentialGuessIndex] == firstGuessScore:
-                        remaining[firstGuessIndex] += 1
-            
-        #provide progress updates
-        currTime = timeit.default_timer()
-        elapsedTime = currTime - startTime
-        predTime = elapsedTime*(numWords/(answerIndex+1)) - elapsedTime
-        formatted_time = "{:.2f}".format(predTime/60)
-        lowestRem = min(remaining)
-        bestWord = wordList[remaining.index(lowestRem)]
-        print(f'{bestWord} is the best initial guess so far with {lowestRem/(answerIndex+1)} words remaining')
-        print(f"{answerIndex+1}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
-    return remaining
+            pattern = patternMatrix[firstGuessIndex][answerIndex]
+            remaining[firstGuessIndex] += patternFreqMatrix[firstGuessIndex][pattern]
 
-def runAnalysis(multiprocess):
-    """Decide whether to use single process or multi process solution
-    Return list that indicated total remaining words after a certain guess"""
-    global numWords, patternMatrix
-    if multiprocess:
-        Q = Queue()
-        procs = [None for x in range(PROCESSORS)]
-        for id in range(PROCESSORS):
-            procs[id] = Process(target=analyzeGuessesMultiprocessing, args=(id,Q,numWords,patternMatrix,))
-        
-        for p in procs:
-            p.start()
-        for p in procs:
-            p.join()
-        print("All processes finished", flush=True)
-        
-        #collate solutions from each process
-        Q.put('DONE')
-        remaining = [0 for i in range(numWords)]
-        while True:
-            rem = Q.get()
-            if rem=='DONE':
-                print(remaining)
-                return remaining
-            for i in range(numWords):
-                remaining[i] += rem[i]
-    else:
-        return analyzeGuesses()
+        if answerIndex%100 == 0 and answerIndex > 1:
+            #provide progress updates
+            currTime = timeit.default_timer()
+            elapsedTime = currTime - startTime
+            predTime = elapsedTime*(numWords/(answerIndex+1)) - elapsedTime
+            formatted_time = "{:.2f}".format(predTime/60)
+            lowestRem = min(remaining)
+            bestWord = wordList[remaining.index(lowestRem)]
+            print(f'{bestWord} is the best initial guess so far with {lowestRem/(answerIndex+1)} words remaining')
+            print(f"{answerIndex+1}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
+    return remaining
 
 def main():
     global wordList, numWords, patternMatrix
@@ -277,7 +214,7 @@ def main():
     makePatternMatrices()    
     print(f"{numWords} 5-letter words in dictionary", flush=True)
     
-    remaining = runAnalysis(multiprocess = True)
+    remaining = analyzeGuesses()
     print(remaining)
     print(f'Writing output solution to file...', flush=True)
     file = open(OUTPUT_FILE, 'w')
@@ -300,11 +237,7 @@ def main():
         bestWord = wordList[bestAveIndex]
         print(f'{i+1}. {bestWord} with an avg of {bestAvg} words remaining')
         avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
-    
-    
-def tmp():
-    loadWordList()
-    makePatternMatrices()
+
 
 if __name__ == "__main__":
-    tmp()
+    main()
