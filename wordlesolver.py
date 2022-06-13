@@ -7,20 +7,16 @@ __author__ = "Adam Karl"
 
 import timeit, array, os, numpy as np
 from numpy import uint8, uint16, dtype
-from multiprocessing import Process, Queue
 
-PROCESSORS = 4
-
-WORDS_FILE = 'sgb-words.txt'
+WORDS_FILE = 'wordle-words.txt'
 PATTERN_MATRIX_FILE = 'output_pattern_matrix.txt'
 PATTERN_FREQ_MATRIX_FILE = 'output_pattern_freq_matrix.txt'
 OUTPUT_FILE = 'output_solution.txt'
+
 patternMatrix = []  # [guessIndex][answerIndex] to find the pattern score
 patternFreqMatrix = [] # [guessIndex][patternScore] to find num valid answers
-
 wordList = []
 numWords = 0
-remaining = []
         
 def loadWordList():
     global wordList, numWords
@@ -190,21 +186,23 @@ def analyzeGuesses():
 
     print('Starting first guess analysis...', flush=True)
     startTime = timeit.default_timer()
-    for answerIndex in range(numWords):        
+    for answerIndex in range(numWords):     
+        #provide intermittent progress updates
+        if answerIndex%100 == 0 and answerIndex > 1:
+            currTime = timeit.default_timer()
+            elapsedTime = currTime - startTime
+            predTime = elapsedTime*(numWords/(answerIndex)) - elapsedTime
+            formatted_time = "{:.2f}".format(predTime/60)
+            lowestRem = min(remaining)
+            bestWord = wordList[remaining.index(lowestRem)]
+            formattedBestRem = "{:.1f}".format(lowestRem/answerIndex)
+            print(f'{bestWord} is the best initial guess so far with {formattedBestRem} words remaining')
+            print(f"{answerIndex}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
+               
         for firstGuessIndex in range(numWords):
             pattern = patternMatrix[firstGuessIndex][answerIndex]
             remaining[firstGuessIndex] += patternFreqMatrix[firstGuessIndex][pattern]
 
-        if answerIndex%100 == 0 and answerIndex > 1:
-            #provide progress updates
-            currTime = timeit.default_timer()
-            elapsedTime = currTime - startTime
-            predTime = elapsedTime*(numWords/(answerIndex+1)) - elapsedTime
-            formatted_time = "{:.2f}".format(predTime/60)
-            lowestRem = min(remaining)
-            bestWord = wordList[remaining.index(lowestRem)]
-            print(f'{bestWord} is the best initial guess so far with {lowestRem/(answerIndex+1)} words remaining')
-            print(f"{answerIndex+1}/{numWords} answers analyzed, ~{formatted_time} mins remaining", flush=True)
     return remaining
 
 def main():
@@ -215,7 +213,7 @@ def main():
     print(f"{numWords} 5-letter words in dictionary", flush=True)
     
     remaining = analyzeGuesses()
-    print(remaining)
+
     print(f'Writing output solution to file...', flush=True)
     file = open(OUTPUT_FILE, 'w')
     file.write(' '.join(str(x) for x in remaining))
@@ -235,7 +233,8 @@ def main():
         bestAvg = min(avgRemaining)
         bestAveIndex = avgRemaining.index(bestAvg)
         bestWord = wordList[bestAveIndex]
-        print(f'{i+1}. {bestWord} with an avg of {bestAvg} words remaining')
+        formattedBestAvg = "{:.2f}".format(bestAvg)
+        print(f'{i+1}. {bestWord} with an avg of {formattedBestAvg} words remaining')
         avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
 
 
