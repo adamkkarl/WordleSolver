@@ -6,15 +6,17 @@
 __author__ = "Adam Karl"
 
 import timeit, array, os, numpy as np
-from numpy import uint8, dtype
+from numpy import uint8, uint16, dtype
 from multiprocessing import Process, Queue
 
 PROCESSORS = 4
 
 WORDS_FILE = 'sgb-words.txt'
 PATTERN_MATRIX_FILE = 'output_pattern_matrix.txt'
+PATTERN_FREQ_MATRIX_FILE = 'output_pattern_freq_matrix.txt'
 OUTPUT_FILE = 'output_solution.txt'
-patternMatrix = []  #patternMatrix[guessIndex][answerIndex] to find the pattern score
+patternMatrix = []  # [guessIndex][answerIndex] to find the pattern score
+patternFreqMatrix = [] # [guessIndex][patternScore] to find num valid answers
 
 wordList = []
 numWords = 0
@@ -32,24 +34,35 @@ def loadWordList():
         wordList[i] = wordList[i][:5]
     return
 
-def makePatternMatrix():
+def makePatternMatrices():
     """If the pattern matrix exists as a file, import it. Otherwise, generate one and save it to file"""
     if os.path.exists(PATTERN_MATRIX_FILE):
         importPatternMatrix()
     else:
         initializePatternMatrix()
+
+    if os.path.exists(PATTERN_FREQ_MATRIX_FILE):
+        importPatternFreqMatrix()
+    else:
+        initializePatternFreqMatrix()
         
 def importPatternMatrix():
     global patternMatrix
     
     print('Importing pattern matrix from file...', end='', flush=True)
     
+    startTime = timeit.default_timer()
+    
     tmp = list()
     with open(PATTERN_MATRIX_FILE) as file:
         tmp = [[int(n) for n in line.split()] for line in file]
     patternMatrix = np.array(tmp, uint8)
     
-    print(f'Imported a {patternMatrix.shape[0]} x {patternMatrix.shape[1]} matrix!', flush=True)
+    endTime = timeit.default_timer()
+    elapsedTime = endTime - startTime
+    formatted_time = "{:.2f}".format(elapsedTime)
+    print(f'Imported a {patternMatrix.shape[0]} x {patternMatrix.shape[1]} matrix in {formatted_time} sec', flush=True)
+    print(patternMatrix)
 
 def initializePatternMatrix():
     """Given the word list, create a 2D matrix of all patterns.
@@ -59,6 +72,8 @@ def initializePatternMatrix():
     global wordList, numWords, patternMatrix
     
     print('Generating pattern matrix...', flush=True)
+    
+    startTime = timeit.default_timer()
     
     tmp = [[0 for i in range(numWords)] for j in range(numWords)]
     patternMatrix = np.array(tmp, dtype=uint8)
@@ -73,16 +88,70 @@ def initializePatternMatrix():
             pattern = determinePattern(answer, guess)
             score = patternScore(pattern)
             patternMatrix[i][j] = uint8(score)
+            
+    endTime = timeit.default_timer()
+    elapsedTime = endTime - startTime
+    formatted_time = "{:.2f}".format(elapsedTime)
     
-    print(f'{numWords}/{numWords} pattern rows generated', flush=True)
+    print(f'{numWords}/{numWords} pattern rows generated in {formatted_time} sec', flush=True)
 
-    print(f'Writing pattern matrix to file...', flush=True)
+    print(f'Writing pattern matrix to file...', end='', flush=True)
     file = open(PATTERN_MATRIX_FILE, 'w')
     for line in patternMatrix:
         file.write(' '.join(str(x) for x in line))
         file.write('\n')
     file.close()
     print(f'Wrote pattern matrix to file!', flush=True)
+    
+def importPatternFreqMatrix():
+    global patternFreqMatrix
+    
+    print('Importing pattern freq matrix from file...', end='', flush=True)
+    
+    startTime = timeit.default_timer()
+    
+    tmp = list()
+    with open(PATTERN_FREQ_MATRIX_FILE) as file:
+        tmp = [[int(n) for n in line.split()] for line in file]
+    patternFreqMatrix = np.array(tmp, uint16)
+    
+    endTime = timeit.default_timer()
+    elapsedTime = endTime - startTime
+    formatted_time = "{:.2f}".format(elapsedTime)
+    print(f'Imported a {patternFreqMatrix.shape[0]} x {patternFreqMatrix.shape[1]} matrix in {formatted_time} sec', flush=True)
+    print(patternFreqMatrix)
+    
+def initializePatternFreqMatrix():
+    """Given the pattern matrix, create patternFreqMatrix such that
+    patternFreqMatrix[guessIndex][patternScore] to find num valid answers.
+    In other words, a freq table of the number of answers that produce the given pattern
+    when the given guess is tested against them"""
+    global numWords, patternMatrix, patternFreqMatrix
+    
+    print('Generating pattern freq matrix...', end='', flush=True)
+    
+    tmp = [[0 for j in range(3**5)] for i in range(numWords)]
+    patternFreqMatrix = np.array(tmp, dtype=uint16)
+    
+    startTime = timeit.default_timer()
+    
+    for i in range(numWords):
+        for j in range(numWords):
+            pattern = patternMatrix[i][j]
+            patternFreqMatrix[i][pattern] += 1
+            
+    endTime = timeit.default_timer()
+    elapsedTime = endTime - startTime
+    formatted_time = "{:.2f}".format(elapsedTime)
+    print(f"Pattern freq matrix generated in {formatted_time} sec", flush=True)
+    
+    print(f'Writing pattern freq matrix to file...', end='', flush=True)
+    file = open(PATTERN_FREQ_MATRIX_FILE, 'w')
+    for line in patternFreqMatrix:
+        file.write(' '.join(str(x) for x in line))
+        file.write('\n')
+    file.close()
+    print(f'Wrote pattern freq matrix to file!', flush=True)
 
 def determinePattern(answer, guess):
     """Given a guess and answer, determine a pattern for the guess where
@@ -205,7 +274,7 @@ def main():
     global wordList, numWords, patternMatrix
 
     loadWordList()
-    makePatternMatrix()    
+    makePatternMatrices()    
     print(f"{numWords} 5-letter words in dictionary", flush=True)
     
     remaining = runAnalysis(multiprocess = True)
@@ -233,6 +302,9 @@ def main():
         avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
     
     
+def tmp():
+    loadWordList()
+    makePatternMatrices()
 
 if __name__ == "__main__":
-    main()
+    tmp()
