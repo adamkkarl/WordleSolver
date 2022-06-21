@@ -1,7 +1,6 @@
 #!/bin/python3
 
 """Experiments at determining optimal wordle guesses"""
-#from test.libregrtest.save_env import multiprocessing
 
 __author__ = "Adam Karl"
 
