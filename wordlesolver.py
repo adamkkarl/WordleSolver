@@ -10,6 +10,8 @@ from numpy import uint8, uint16, dtype
 ALL_WORDS_FILE = 'wordle-words.txt'
 SOLUTION_WORDS_FILE = 'wordle-solutions.txt'
 
+FIRST_GUESS = 'roate'
+
 PATTERN_MATRIX_FILE = 'output_pattern_matrix.txt'
 PATTERN_FREQ_MATRIX_FILE = 'output_pattern_freq_matrix.txt'
 OUTPUT_FILE = 'output_solution.txt'
@@ -25,7 +27,6 @@ def loadWordList(file):
 
 def makePatternMatrix(solutionWordList, guessesWordList):
     """If the pattern matrix exists as a file, import it. Otherwise, generate one and save it to file"""
-    patternMatrix = []    
     if os.path.exists(PATTERN_MATRIX_FILE):
         return importPatternMatrix()
     return initializePatternMatrix(solutionWordList, guessesWordList)
@@ -193,7 +194,8 @@ def analyzeGuesses(allWordsList, patternMatrix, patternFreqMatrix):
 
     return remaining
 
-def main():
+def firstGuessAnalysis():
+    """Main driver function to run analysis on the best first guess with no lookahead"""
     # load word lists from file
     allWordsList = loadWordList(ALL_WORDS_FILE)
     solutionWordsList = loadWordList(SOLUTION_WORDS_FILE)
@@ -236,6 +238,86 @@ def main():
         pctEliminated = "{:.2f}".format(100*(1 - (bestAvg/len(solutionWordsList))))
         print(f'{i+1}. {bestWord} with an avg of {formattedBestAvg} words remaining ({pctEliminated}% eliminated)')
         avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
+        
+def optimalRemainingGuesses(answerIndex, possibleSolutionIndices, patternMatrix, solutionWordsList, allWordsList):
+    """Given the answer and the remaining pool of possible words, recursively
+    determine the number of guesses necessary with optimal play to get the answer"""
+    # if only one solution remains, we've found it
+    if len(possibleSolutionIndices) == 1:
+        if answerIndex != possibleSolutionIndices[0]:
+            print(f"ERROR: ANSWER = {solutionWordsList[answerIndex]}; GUESS={solutionWordsList[possibleSolutionIndices[0]]}")
+        # print guess
+        print(f"{solutionWordsList[answerIndex]} ", end='')
+        return 1
+    
+    # determine the guess that minimizes the average remaining answers
+    bestGuessIndex = -1
+    bestGuessRemainingPossibleAnswers = -1  
+    for guessIndex in range(len(patternMatrix)):
+        patternsDict = dict()
+        for potentialAnswerIndex in possibleSolutionIndices:
+            pattern = patternMatrix[guessIndex][potentialAnswerIndex]
+            if pattern in patternsDict.keys():
+                patternsDict[pattern] += 1
+            else:
+                patternsDict[pattern] = 1
+        avgRemainingSolutions = sum(patternsDict.values()) / len(patternsDict) 
+        if avgRemainingSolutions < bestGuessRemainingPossibleAnswers or bestGuessIndex == -1:
+            bestGuessIndex = guessIndex
+            bestGuessRemainingPossibleAnswers = avgRemainingSolutions
+            
+    # print guess
+    print(f"{allWordsList[bestGuessIndex]} ", end='')
+    
+    # if this guess is  the answer, we've found it
+    if allWordsList[bestGuessIndex] == solutionWordsList[answerIndex]:
+        # guessed the answer
+        return 1
+    
+    # determine which words are could still be the solution after this guess
+    myPossibleSolutionIndices = list()
+    for i in possibleSolutionIndices:
+        if patternMatrix[bestGuessIndex][i] == patternMatrix[bestGuessIndex][answerIndex]:
+            myPossibleSolutionIndices.append(i)
+    
+    # recursive call
+    return 1 + optimalRemainingGuesses(answerIndex, myPossibleSolutionIndices, patternMatrix, solutionWordsList, allWordsList)
+
+        
+def main():
+    # load word lists from file
+    allWordsList = loadWordList(ALL_WORDS_FILE)
+    solutionWordsList = loadWordList(SOLUTION_WORDS_FILE)
+    print(f"{len(allWordsList)} 5-letter words in dictionary", flush=True)
+    print(f"{len(solutionWordsList)} of those are possible solutions\n", flush=True)
+    
+    # use word lists to create pattern matrix and pattern frequency matrix
+    patternMatrix = makePatternMatrix(solutionWordsList, allWordsList)
+    print(patternMatrix, end='\n\n')
+    
+    # always guess 'roate' first
+    firstGuessIndex = allWordsList.index(FIRST_GUESS)
+    
+    guessesSum = 0
+    for ansIndex in range(len(solutionWordsList)):
+        # guess 'roate' first and determine the list of remaining words
+        myPossibleSolutionIndices = list()
+        for i in range(len(solutionWordsList)):
+            if patternMatrix[firstGuessIndex][i] == patternMatrix[firstGuessIndex][ansIndex]:
+                myPossibleSolutionIndices.append(i)
+        
+        # print updates        
+        print(f"{ansIndex+1}/{len(solutionWordsList)}: {allWordsList[firstGuessIndex]} ", end='')
+        
+        # determine number of guesses using optimal strategy
+        numGuesses = 1 + optimalRemainingGuesses(ansIndex, myPossibleSolutionIndices, patternMatrix, solutionWordsList, allWordsList)
+        guessesSum += numGuesses
+    
+        print(flush=True)
+        
+    avgGuesses = guessesSum / len(solutionWordsList) 
+    formattedAvgGuesses = "{:.4f}".format(avgGuesses)
+    print(f"\nThis strategy uses an average of {formattedAvgGuesses} guesses")
 
 if __name__ == "__main__":
     main()
