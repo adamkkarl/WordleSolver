@@ -171,9 +171,6 @@ def analyzeGuesses(allWordsList, patternMatrix, patternFreqMatrix):
     the number of remaining valid words the answer could be. Return an array of the
     sum total remaining possibilities given an initial guess"""
     remaining = [0 for _ in range(len(patternMatrix))]
-    
-    print(patternMatrix.shape)
-    print(patternFreqMatrix.shape)
 
     print('Starting first guess analysis...', flush=True)
     startTime = timeit.default_timer()
@@ -182,7 +179,7 @@ def analyzeGuesses(allWordsList, patternMatrix, patternFreqMatrix):
         if answerIndex%100 == 0 and answerIndex > 1:
             currTime = timeit.default_timer()
             elapsedTime = currTime - startTime
-            predTime = elapsedTime*(len(allWordsList)/(answerIndex)) - elapsedTime
+            predTime = elapsedTime*(len(patternMatrix[0])/(answerIndex)) - elapsedTime
             formatted_time = "{:.2f}".format(predTime/60)
             lowestRem = min(remaining)
             bestWord = allWordsList[remaining.index(lowestRem)]
@@ -212,19 +209,22 @@ def main():
     # use pattern matrices to analyze the best first guess
     remaining = analyzeGuesses(allWordsList, patternMatrix, patternFreqMatrix)
 
-    print(f'Writing output solution to file...', flush=True)
+    print(f'Writing output solution to file...', end='', flush=True)
     file = open(OUTPUT_FILE, 'w')
     file.write(' '.join(str(x) for x in remaining))
     file.write('\n')
     file.close()
-    print(f'Wrote output solution to file!\n', flush=True)
+    print(f'wrote output solution to file!\n', flush=True)
     
     avgRemaining = [x/len(solutionWordsList) for x in remaining]
     
     # print worst word
     worstAvg = max(avgRemaining)
+    formattedWorstAvg = "{:.2f}".format(worstAvg)
     worstWord = allWordsList[avgRemaining.index(worstAvg)]
-    print(f'{worstWord} is the worst initial guess with an avg of {worstAvg} words remaining\n')
+    pctEliminated = "{:.2f}".format(100*(1 - (worstAvg/len(solutionWordsList))))
+    print("WORST INITIAL GUESS")
+    print(f'{worstWord} is the worst initial guess with an avg of {formattedWorstAvg} words remaining ({pctEliminated}% eliminated)\n')
     
     # print top 10 words
     print("TOP 10 INITIAL GUESSES")
@@ -233,7 +233,8 @@ def main():
         bestAveIndex = avgRemaining.index(bestAvg)
         bestWord = allWordsList[bestAveIndex]
         formattedBestAvg = "{:.2f}".format(bestAvg)
-        print(f'{i+1}. {bestWord} with an avg of {formattedBestAvg} words remaining')
+        pctEliminated = "{:.2f}".format(100*(1 - (bestAvg/len(solutionWordsList))))
+        print(f'{i+1}. {bestWord} with an avg of {formattedBestAvg} words remaining ({pctEliminated}% eliminated)')
         avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
 
 if __name__ == "__main__":
