@@ -250,6 +250,19 @@ def optimalRemainingGuesses(answerIndex, possibleSolutionIndices, patternMatrix,
         print(f"{solutionWordsList[answerIndex]} ", end='')
         return 1
     
+    # if two solutions remain, guess the first one in alphabetical order
+    if len(possibleSolutionIndices) == 2:
+        print(f"{solutionWordsList[possibleSolutionIndices[0]]} ", end='')
+        if answerIndex == possibleSolutionIndices[0]:
+            return 1
+        elif answerIndex == possibleSolutionIndices[1]:
+            # print guess
+            print(f"{solutionWordsList[possibleSolutionIndices[1]]} ", end='')
+            return 2
+        else:
+            print(f"ERROR: ANSWER = {solutionWordsList[answerIndex]}; ", end='')
+            print(f"GUESSES = {solutionWordsList[possibleSolutionIndices[0]]}, {solutionWordsList[possibleSolutionIndices[0]]}")
+    
     # determine the guess that minimizes the average remaining answers
     bestGuessIndex = -1
     bestGuessRemainingPossibleAnswers = -1  
@@ -285,6 +298,9 @@ def optimalRemainingGuesses(answerIndex, possibleSolutionIndices, patternMatrix,
 
         
 def main():
+    """Driver to simulate solving all possible answers by first guessing 'roate'
+    then using the best guessing strategy to minimize total guesses
+    """
     # load word lists from file
     allWordsList = loadWordList(ALL_WORDS_FILE)
     solutionWordsList = loadWordList(SOLUTION_WORDS_FILE)
@@ -320,4 +336,5 @@ def main():
     print(f"\nThis strategy uses an average of {formattedAvgGuesses} guesses")
 
 if __name__ == "__main__":
+    # firstGuessAnalysis()
     main()
