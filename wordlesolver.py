@@ -7,14 +7,14 @@ __author__ = "Adam Karl"
 import timeit, array, os, numpy as np
 from numpy import uint8, uint16, dtype
 
-ALL_WORDS_FILE = 'wordle-words.txt'
-SOLUTION_WORDS_FILE = 'wordle-solutions.txt'
+ALL_WORDS_FILE = '.\input\wordle-words-adjusted.txt'
+SOLUTION_WORDS_FILE = '.\input\wordle-solutions.txt'
 
 FIRST_GUESS = 'roate'
 
-PATTERN_MATRIX_FILE = 'output_pattern_matrix.txt'
-PATTERN_FREQ_MATRIX_FILE = 'output_pattern_freq_matrix.txt'
-OUTPUT_FILE = 'output_solution.txt'
+PATTERN_MATRIX_FILE = '.\output\output_pattern_matrix.txt'
+PATTERN_FREQ_MATRIX_FILE = '.\output\output_pattern_freq_matrix.txt'
+OUTPUT_FILE = '.\output\output_solution.txt'
         
 def loadWordList(file):
     f = open(file, 'r')
@@ -279,6 +279,17 @@ def optimalRemainingGuesses(answerIndex, possibleSolutionIndices, patternMatrix,
             bestGuessIndex = guessIndex
             bestGuessRemainingPossibleAnswers = avgRemainingSolutions
             
+    
+    # TODO
+    # Possible approaches to consider:
+    # 1. guess a word that could be a solution (a hard mode guess that also considers the solution words list)
+    # 2. guess a word that can't be a solution but narrows down the possible solution list
+    
+    
+    
+    
+    
+            
     # print guess
     print(f"{allWordsList[bestGuessIndex]} ", end='')
     
@@ -338,3 +349,4 @@ def main():
 if __name__ == "__main__":
     # firstGuessAnalysis()
     main()
+        
