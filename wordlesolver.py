@@ -237,76 +237,99 @@ def firstGuessAnalysis():
         formattedBestAvg = "{:.2f}".format(bestAvg)
         pctEliminated = "{:.2f}".format(100*(1 - (bestAvg/len(solutionWordsList))))
         print(f'{i+1}. {bestWord} with an avg of {formattedBestAvg} words remaining ({pctEliminated}% eliminated)')
-        avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration
+        avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration  
         
-def optimalRemainingGuesses(answerIndex, possibleSolutionIndices, patternMatrix, solutionWordsList, allWordsList):
-    """Given the answer and the remaining pool of possible words, recursively
-    determine the number of guesses necessary with optimal play to get the answer"""
+def isHardModeGuessBetter(initialSetSize, hardModeAvgRemSetSize, nonHardModeAvgRemSetSize):
+    """Given avg set sizes for hard and non-hard mode guesses,
+    return True if the solver should make the hard mode guess
+    """
+    # normally, the solver should consider the upside that a hard mode guess may get lucky
+    # and immediately guess the right answer vs the downside of a (on average) larger 
+    # solution space if it doesn't get lucky. For now, we will just play on hard mode
+    # after the fixed initial guess
+    return True
+
+def makeBestGuess(answerIndex, possibleSolutionIndices, patternMatrix, allWordsList):
+    """Given the subset of words that can still be the solution, 
+    implement a strategy to make the best guess, then continue until the solution is found.
+    Return the number of guesses needed to reach the solution"""
     # if only one solution remains, we've found it
     if len(possibleSolutionIndices) == 1:
-        if answerIndex != possibleSolutionIndices[0]:
-            print(f"ERROR: ANSWER = {solutionWordsList[answerIndex]}; GUESS={solutionWordsList[possibleSolutionIndices[0]]}")
-        # print guess
-        print(f"{solutionWordsList[answerIndex]} ", end='')
+        print(f"{allWordsList[possibleSolutionIndices[0]]} ", end='')
         return 1
     
-    # if two solutions remain, guess the first one in alphabetical order
+    # if two solutions remain, guess one arbitrarily, then the other (if necessary)
     if len(possibleSolutionIndices) == 2:
-        print(f"{solutionWordsList[possibleSolutionIndices[0]]} ", end='')
+        print(f"{allWordsList[possibleSolutionIndices[0]]} ", end='')
         if answerIndex == possibleSolutionIndices[0]:
             return 1
-        elif answerIndex == possibleSolutionIndices[1]:
-            # print guess
-            print(f"{solutionWordsList[possibleSolutionIndices[1]]} ", end='')
-            return 2
         else:
-            print(f"ERROR: ANSWER = {solutionWordsList[answerIndex]}; ", end='')
-            print(f"GUESSES = {solutionWordsList[possibleSolutionIndices[0]]}, {solutionWordsList[possibleSolutionIndices[0]]}")
+            print(f"{allWordsList[possibleSolutionIndices[1]]} ", end='')
+            return 2
     
-    # determine the guess that minimizes the average remaining answers
-    bestGuessIndex = -1
-    bestGuessRemainingPossibleAnswers = -1  
-    for guessIndex in range(len(patternMatrix)):
+    # 3+ words remain, so we have to weigh two strategies
+    # 1. making a "hard mode" guess to potentially get the answer right this turn
+    # 2. guessing a word that cannot be the right answer, but might narrow down the potential solutions better than #1
+    
+    # 1. find the best 'hard mode' guess. this is based on avg solution set size, not perfectly solved
+    hardModeGuessIndex = -1
+    hardModeGuessAvgRemSetSize = -1
+    for guessIndex in possibleSolutionIndices:
         patternsDict = dict()
-        for potentialAnswerIndex in possibleSolutionIndices:
-            pattern = patternMatrix[guessIndex][potentialAnswerIndex]
+        for solutionIndex in possibleSolutionIndices:
+            pattern = patternMatrix[guessIndex][solutionIndex]
             if pattern in patternsDict.keys():
                 patternsDict[pattern] += 1
             else:
                 patternsDict[pattern] = 1
-        avgRemainingSolutions = sum(patternsDict.values()) / len(patternsDict) 
-        if avgRemainingSolutions < bestGuessRemainingPossibleAnswers or bestGuessIndex == -1:
-            bestGuessIndex = guessIndex
-            bestGuessRemainingPossibleAnswers = avgRemainingSolutions
+        avgRemainingSetSize = sum(patternsDict.values()) / len(patternsDict) 
+        if avgRemainingSetSize < hardModeGuessAvgRemSetSize or hardModeGuessAvgRemSetSize == -1:
+            hardModeGuessIndex = guessIndex
+            hardModeGuessAvgRemSetSize = avgRemainingSetSize  
             
+    # 2. find the best 'non-hard mode' guess. this is based on avg solution set size, not perfectly solved
+    nonHardModeGuessIndex = -1
+    nonHardModeGuessAvgRemSetSize = -1
     
-    # TODO
-    # Possible approaches to consider:
-    # 1. guess a word that could be a solution (a hard mode guess that also considers the solution words list)
-    # 2. guess a word that can't be a solution but narrows down the possible solution list
+    # TODO: add consideration for non-hard mode guesses
     
+    # for guessIndex in range(len(patternMatrix)):
+    #     patternsDict = dict()
+    #     for solutionIndex in possibleSolutionIndices:
+    #         pattern = patternMatrix[guessIndex][solutionIndex]
+    #         if pattern in patternsDict.keys():
+    #             patternsDict[pattern] += 1
+    #         else:
+    #             patternsDict[pattern] = 1
+    #     avgRemainingSetSize = sum(patternsDict.values()) / len(patternsDict) 
+    #     if avgRemainingSetSize < nonHardModeGuessAvgRemSetSize or nonHardModeGuessAvgRemSetSize == -1:
+    #         nonHardModeGuessIndex = guessIndex
+    #         nonHardModeGuessAvgRemSetSize = avgRemainingSetSize
     
+    # decide between hard mode and non-hard mode
+    finalGuessIndex = -1
+    if isHardModeGuessBetter(len(possibleSolutionIndices), hardModeGuessAvgRemSetSize, nonHardModeGuessAvgRemSetSize) == True:
+        # make the hard mode guess
+        finalGuessIndex = hardModeGuessIndex
+    else:
+        # make the non-hard mode guess
+        finalGuessIndex = nonHardModeGuessIndex
     
-    
-    
-            
     # print guess
-    print(f"{allWordsList[bestGuessIndex]} ", end='')
+    print(f"{allWordsList[finalGuessIndex]} ", end='')
     
-    # if this guess is  the answer, we've found it
-    if allWordsList[bestGuessIndex] == solutionWordsList[answerIndex]:
-        # guessed the answer
+    # check if we accidentally guessed the word
+    if finalGuessIndex == answerIndex:
         return 1
     
-    # determine which words are could still be the solution after this guess
+    # make guess and narrow down possible solutions
     myPossibleSolutionIndices = list()
-    for i in possibleSolutionIndices:
-        if patternMatrix[bestGuessIndex][i] == patternMatrix[bestGuessIndex][answerIndex]:
-            myPossibleSolutionIndices.append(i)
+    pattern = patternMatrix[finalGuessIndex][answerIndex]
+    for index in possibleSolutionIndices:
+        if patternMatrix[finalGuessIndex][index] == pattern:
+            myPossibleSolutionIndices.append(index)
     
-    # recursive call
-    return 1 + optimalRemainingGuesses(answerIndex, myPossibleSolutionIndices, patternMatrix, solutionWordsList, allWordsList)
-
+    return 1 + makeBestGuess(answerIndex, myPossibleSolutionIndices, patternMatrix, allWordsList)
         
 def main():
     """Driver to simulate solving all possible answers by first guessing 'roate'
@@ -332,18 +355,19 @@ def main():
         for i in range(len(solutionWordsList)):
             if patternMatrix[firstGuessIndex][i] == patternMatrix[firstGuessIndex][ansIndex]:
                 myPossibleSolutionIndices.append(i)
-        
+                
         # print updates        
-        print(f"{ansIndex+1}/{len(solutionWordsList)}: {allWordsList[firstGuessIndex]} ", end='')
+        print(f"{ansIndex+1}/{len(solutionWordsList)} {allWordsList[ansIndex]}: {allWordsList[firstGuessIndex]} ", end='')
         
-        # determine number of guesses using optimal strategy
-        numGuesses = 1 + optimalRemainingGuesses(ansIndex, myPossibleSolutionIndices, patternMatrix, solutionWordsList, allWordsList)
+        # determine number of guesses using the implemented strategy
+        numGuesses = 1 + makeBestGuess(ansIndex, myPossibleSolutionIndices, patternMatrix, allWordsList)
         guessesSum += numGuesses
-    
+
+        # flush recursive print statements      
         print(flush=True)
         
-    avgGuesses = guessesSum / len(solutionWordsList) 
-    formattedAvgGuesses = "{:.4f}".format(avgGuesses)
+    totalAvgGuesses = guessesSum / len(solutionWordsList) 
+    formattedAvgGuesses = "{:.4f}".format(totalAvgGuesses)
     print(f"\nThis strategy uses an average of {formattedAvgGuesses} guesses")
 
 if __name__ == "__main__":
