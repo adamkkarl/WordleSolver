@@ -1,6 +1,6 @@
 #!/bin/python3
 
-"""Experiments at determining optimal wordle guesses"""
+"""Experiments at datermining optimal wordle strategy"""
 
 __author__ = "Adam Karl"
 
@@ -159,7 +159,7 @@ def importGuessEstimationArray(length):
         print(f'imported a {len(guessEstArray)} x {len(guessEstArray[0])} matrix', flush=True)
         return guessEstArray
     else:
-        print(f'Genetating blank guess estimation array',  flush=True)
+        print(f'Generating blank guess estimation array',  flush=True)
         estArray = [[0.0, 0] for _ in range(length)]
         estArray[1] = [1.0, 1] # one possible word = 1 guess
         estArray[2] = [1.5, 1] # two possible words = 1.5 guesses on avg
@@ -287,12 +287,27 @@ def isHardModeGuessBetter(initialSetSize, hardModeAvgSize, nonHardModeAvgSize, g
     This function will choose the hard mode guess unless there's evidence to suggest
     the non-hard mode guess is significantly better
     """
-    hardModeSize = round(hardModeAvgSize)
-    nonHardModeSize = round(nonHardModeAvgSize)
-    if guessEstArray[hardModeSize][1] != 0 and guessEstArray[nonHardModeSize][1] != 0:
-        hardModeExpectedGuesses = ((initialSetSize-1)/initialSetSize)*guessEstArray[hardModeSize][0]
-        nonHardModeExpectedGuesses = guessEstArray[nonHardModeSize][0]
-        return hardModeExpectedGuesses <= nonHardModeExpectedGuesses
+    hardModeFloor = int(hardModeAvgSize)
+    nonHardModeFloor = int(nonHardModeAvgSize)
+    if guessEstArray[hardModeFloor][1] != 0 and guessEstArray[hardModeFloor+1][1] != 0:
+        if guessEstArray[nonHardModeFloor][1] != 0 and guessEstArray[nonHardModeFloor+1][1] != 0:
+            hardModeDecimal = hardModeAvgSize - hardModeFloor
+            hardModeFurtherExpectedGuesses = (1-hardModeDecimal) * guessEstArray[hardModeFloor][0] + hardModeDecimal * guessEstArray[hardModeFloor+1][0]
+            hardModeExpectedGuesses = 1 + ((initialSetSize-1)/initialSetSize) * hardModeFurtherExpectedGuesses
+            
+            nonHardModeDecimal = nonHardModeAvgSize - nonHardModeFloor
+            nonHardModeFurtherExpectedGuesses = (1-nonHardModeDecimal) * guessEstArray[nonHardModeFloor][0] + nonHardModeDecimal * guessEstArray[nonHardModeFloor+1][0]
+            nonHardModeExpectedGuesses = 1 + nonHardModeFurtherExpectedGuesses
+            
+            # print scores for the 2 approaches
+            # formattedHard = "{:.3f}".format(hardModeExpectedGuesses)
+            # formattedNonHard = "{:.3f}".format(nonHardModeExpectedGuesses)
+            # print(f'{formattedHard}v{formattedNonHard} ', end='')
+            
+            if hardModeExpectedGuesses > nonHardModeExpectedGuesses:
+                # print('e-', end='')
+                return False
+    # print('h-', end='')
     return True
 
 def makeBestGuess(answerIndex, possibleSolutionIndices, patternMatrix, guessEstArray, allWordsList):
@@ -426,8 +441,6 @@ def main():
     totalAvgGuesses = guessesSum / len(solutionWordsList) 
     formattedAvgGuesses = "{:.4f}".format(totalAvgGuesses)
     print(f"\nThis strategy uses an average of {formattedAvgGuesses} guesses")
-    
-    
 
 if __name__ == "__main__":
     # firstGuessAnalysis()
