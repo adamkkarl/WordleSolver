@@ -12,6 +12,7 @@ SOLUTION_WORDS_FILE = '.\input\wordle-solutions.txt'
 
 FIRST_GUESS = 'roate'
 
+GUESS_ESTIMATION_ARRAY = '.\output\output_guess_estimation.txt'
 PATTERN_MATRIX_FILE = '.\output\output_pattern_matrix.txt'
 PATTERN_FREQ_MATRIX_FILE = '.\output\output_pattern_freq_matrix.txt'
 OUTPUT_FILE = '.\output\output_solution.txt'
@@ -31,12 +32,6 @@ def makePatternMatrix(solutionWordList, guessesWordList):
         return importPatternMatrix()
     return initializePatternMatrix(solutionWordList, guessesWordList)
 
-def makePatternFreqMatrix(patternMatrix):
-    """If the pattern freq matrix exists as a file, import it. Otherwise, generate one and save it to file"""
-    if os.path.exists(PATTERN_FREQ_MATRIX_FILE):
-        return importPatternFreqMatrix()
-    return initializePatternFreqMatrix(patternMatrix)
-        
 def importPatternMatrix():
     print('Importing pattern matrix from file...', end='', flush=True)
     startTime = timeit.default_timer()
@@ -90,6 +85,12 @@ def initializePatternMatrix(solutionWordList, guessesWordList):
     print(f'Wrote pattern matrix to file!', flush=True)
     
     return patternMatrix
+
+def makePatternFreqMatrix(patternMatrix):
+    """If the pattern freq matrix exists as a file, import it. Otherwise, generate one and save it to file"""
+    if os.path.exists(PATTERN_FREQ_MATRIX_FILE):
+        return importPatternFreqMatrix()
+    return initializePatternFreqMatrix(patternMatrix)
     
 def importPatternFreqMatrix():
     print('Importing pattern freq matrix from file...', end='', flush=True)
@@ -138,6 +139,45 @@ def initializePatternFreqMatrix(patternMatrix):
     print(f'Wrote pattern freq matrix to file!', flush=True)
     
     return patternFreqMatrix
+
+def importGuessEstimationArray(length):
+    """If the guess estimation array file exists, import it. Otherwise, initialize a blank one
+    guessEstimation[n][0] contains an evidence-based estimation of how many guesses is necessary
+    to find which of n possible solutions is correct
+    guessEstimation[n][1] contains the number of scenarios that have combined to reach that average"""
+    if os.path.exists(GUESS_ESTIMATION_ARRAY):
+        print(f'Importing guess estimation array...', end='', flush=True)
+        f = open(GUESS_ESTIMATION_ARRAY, 'r')
+        lines = f.readlines()
+        f.close()
+        
+        guessEstArray = list()
+        for line in lines:
+            avg, count = line.strip().split()
+            guessEstArray.append([float(avg), int(count)])
+
+        print(f'imported a {len(guessEstArray)} x {len(guessEstArray[0])} matrix', flush=True)
+        return guessEstArray
+    else:
+        print(f'Genetating blank guess estimation array',  flush=True)
+        estArray = [[0.0, 0] for _ in range(length)]
+        estArray[1] = [1.0, 1] # one possible word = 1 guess
+        estArray[2] = [1.5, 1] # two possible words = 1.5 guesses on avg
+        return estArray
+     
+def saveGuessEstimationArray(guessEstArray):
+    """Save the guess estimation array to file"""
+    file = open(GUESS_ESTIMATION_ARRAY, 'w')
+    for avg, count in guessEstArray:
+        file.write(str(avg) + ' ' + str(count) + '\n')
+    file.close()
+    
+def updateGuessEstimationArray(numSolutions, numGuesses, guessEstArray):
+    """Given the number of guesses it took to solve a certain number of solutions,
+    update the current best estimate"""
+    currAvg, count = guessEstArray[numSolutions]
+    newAvg = (currAvg * count + numGuesses) / (count + 1)    
+    guessEstArray[numSolutions] = [newAvg, count+1]
 
 def determinePattern(answer, guess):
     """Given a guess and answer, determine a pattern for the guess where
@@ -239,17 +279,23 @@ def firstGuessAnalysis():
         print(f'{i+1}. {bestWord} with an avg of {formattedBestAvg} words remaining ({pctEliminated}% eliminated)')
         avgRemaining[bestAveIndex] = 9999 #remove this word from further consideration  
         
-def isHardModeGuessBetter(initialSetSize, hardModeAvgRemSetSize, nonHardModeAvgRemSetSize):
+def isHardModeGuessBetter(initialSetSize, hardModeAvgSize, nonHardModeAvgSize, guessEstArray):
     """Given avg set sizes for hard and non-hard mode guesses,
-    return True if the solver should make the hard mode guess
+    return True if the solver should make the hard mode guess.
+    This uses the guessEstArray which gets better the more information is fed in
+    
+    This function will choose the hard mode guess unless there's evidence to suggest
+    the non-hard mode guess is significantly better
     """
-    # normally, the solver should consider the upside that a hard mode guess may get lucky
-    # and immediately guess the right answer vs the downside of a (on average) larger 
-    # solution space if it doesn't get lucky. For now, we will just play on hard mode
-    # after the fixed initial guess
+    hardModeSize = round(hardModeAvgSize)
+    nonHardModeSize = round(nonHardModeAvgSize)
+    if guessEstArray[hardModeSize][1] != 0 and guessEstArray[nonHardModeSize][1] != 0:
+        hardModeExpectedGuesses = ((initialSetSize-1)/initialSetSize)*guessEstArray[hardModeSize][0]
+        nonHardModeExpectedGuesses = guessEstArray[nonHardModeSize][0]
+        return hardModeExpectedGuesses <= nonHardModeExpectedGuesses
     return True
 
-def makeBestGuess(answerIndex, possibleSolutionIndices, patternMatrix, allWordsList):
+def makeBestGuess(answerIndex, possibleSolutionIndices, patternMatrix, guessEstArray, allWordsList):
     """Given the subset of words that can still be the solution, 
     implement a strategy to make the best guess, then continue until the solution is found.
     Return the number of guesses needed to reach the solution"""
@@ -290,25 +336,22 @@ def makeBestGuess(answerIndex, possibleSolutionIndices, patternMatrix, allWordsL
     # 2. find the best 'non-hard mode' guess. this is based on avg solution set size, not perfectly solved
     nonHardModeGuessIndex = -1
     nonHardModeGuessAvgRemSetSize = -1
-    
-    # TODO: add consideration for non-hard mode guesses
-    
-    # for guessIndex in range(len(patternMatrix)):
-    #     patternsDict = dict()
-    #     for solutionIndex in possibleSolutionIndices:
-    #         pattern = patternMatrix[guessIndex][solutionIndex]
-    #         if pattern in patternsDict.keys():
-    #             patternsDict[pattern] += 1
-    #         else:
-    #             patternsDict[pattern] = 1
-    #     avgRemainingSetSize = sum(patternsDict.values()) / len(patternsDict) 
-    #     if avgRemainingSetSize < nonHardModeGuessAvgRemSetSize or nonHardModeGuessAvgRemSetSize == -1:
-    #         nonHardModeGuessIndex = guessIndex
-    #         nonHardModeGuessAvgRemSetSize = avgRemainingSetSize
+    for guessIndex in range(len(patternMatrix)):
+        patternsDict = dict()
+        for solutionIndex in possibleSolutionIndices:
+            pattern = patternMatrix[guessIndex][solutionIndex]
+            if pattern in patternsDict.keys():
+                patternsDict[pattern] += 1
+            else:
+                patternsDict[pattern] = 1
+        avgRemainingSetSize = sum(patternsDict.values()) / len(patternsDict) 
+        if avgRemainingSetSize < nonHardModeGuessAvgRemSetSize or nonHardModeGuessAvgRemSetSize == -1:
+            nonHardModeGuessIndex = guessIndex
+            nonHardModeGuessAvgRemSetSize = avgRemainingSetSize
     
     # decide between hard mode and non-hard mode
     finalGuessIndex = -1
-    if isHardModeGuessBetter(len(possibleSolutionIndices), hardModeGuessAvgRemSetSize, nonHardModeGuessAvgRemSetSize) == True:
+    if isHardModeGuessBetter(len(possibleSolutionIndices), hardModeGuessAvgRemSetSize, nonHardModeGuessAvgRemSetSize, guessEstArray) == True:
         # make the hard mode guess
         finalGuessIndex = hardModeGuessIndex
     else:
@@ -318,18 +361,26 @@ def makeBestGuess(answerIndex, possibleSolutionIndices, patternMatrix, allWordsL
     # print guess
     print(f"{allWordsList[finalGuessIndex]} ", end='')
     
+    
+    solutionGuesses = 0
     # check if we accidentally guessed the word
     if finalGuessIndex == answerIndex:
-        return 1
+        solutionGuesses = 1
+    else:
+        # make guess and narrow down possible solutions
+        myPossibleSolutionIndices = list()
+        pattern = patternMatrix[finalGuessIndex][answerIndex]
+        for index in possibleSolutionIndices:
+            if patternMatrix[finalGuessIndex][index] == pattern:
+                myPossibleSolutionIndices.append(index)
+                
+        # use recursive step to solve
+        solutionGuesses = 1 + makeBestGuess(answerIndex, myPossibleSolutionIndices, patternMatrix, guessEstArray, allWordsList)
     
-    # make guess and narrow down possible solutions
-    myPossibleSolutionIndices = list()
-    pattern = patternMatrix[finalGuessIndex][answerIndex]
-    for index in possibleSolutionIndices:
-        if patternMatrix[finalGuessIndex][index] == pattern:
-            myPossibleSolutionIndices.append(index)
+    # update estimates of guesses to solve based on solution space
+    updateGuessEstimationArray(len(possibleSolutionIndices), solutionGuesses, guessEstArray)
     
-    return 1 + makeBestGuess(answerIndex, myPossibleSolutionIndices, patternMatrix, allWordsList)
+    return solutionGuesses
         
 def main():
     """Driver to simulate solving all possible answers by first guessing 'roate'
@@ -344,6 +395,9 @@ def main():
     # use word lists to create pattern matrix and pattern frequency matrix
     patternMatrix = makePatternMatrix(solutionWordsList, allWordsList)
     print(patternMatrix, end='\n\n')
+    
+    # import guess estimation array to help estimate best strategy based on remaining possible solutions
+    guessEstArray = importGuessEstimationArray(len(solutionWordsList) + 1)
     
     # always guess 'roate' first
     firstGuessIndex = allWordsList.index(FIRST_GUESS)
@@ -360,15 +414,20 @@ def main():
         print(f"{ansIndex+1}/{len(solutionWordsList)} {allWordsList[ansIndex]}: {allWordsList[firstGuessIndex]} ", end='')
         
         # determine number of guesses using the implemented strategy
-        numGuesses = 1 + makeBestGuess(ansIndex, myPossibleSolutionIndices, patternMatrix, allWordsList)
+        numGuesses = 1 + makeBestGuess(ansIndex, myPossibleSolutionIndices, patternMatrix, guessEstArray, allWordsList)
         guessesSum += numGuesses
 
         # flush recursive print statements      
         print(flush=True)
         
+    # save guess estimation array to improve future guesses based on remaining possible solutions
+    saveGuessEstimationArray(guessEstArray)
+        
     totalAvgGuesses = guessesSum / len(solutionWordsList) 
     formattedAvgGuesses = "{:.4f}".format(totalAvgGuesses)
     print(f"\nThis strategy uses an average of {formattedAvgGuesses} guesses")
+    
+    
 
 if __name__ == "__main__":
     # firstGuessAnalysis()
